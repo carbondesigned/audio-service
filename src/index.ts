@@ -3,8 +3,13 @@ import dotenv from 'dotenv';
 import ytdl from 'ytdl-core';
 import fs from 'fs';
 import cp from 'child_process';
-
 import {createClient} from '@supabase/supabase-js';
+
+dotenv.config();
+
+const app: Express = express();
+app.use(express.json());
+const port = process.env.PORT;
 
 export const supabaseClient = async (supabaseAccessToken: string) => {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
@@ -17,12 +22,6 @@ export const supabaseClient = async (supabaseAccessToken: string) => {
   // so it is sent up with all Supabase requests
   return supabase;
 };
-
-dotenv.config();
-
-const app: Express = express();
-app.use(express.json());
-const port = process.env.PORT;
 
 app.get('/', (req: Request, res: Response) => {
   res.send('Express + TypeScript Server');
