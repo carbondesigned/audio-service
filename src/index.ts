@@ -21,6 +21,7 @@ export const supabaseClient = async (supabaseAccessToken: string) => {
 dotenv.config();
 
 const app: Express = express();
+app.use(express.json());
 const port = process.env.PORT;
 
 app.get('/', (req: Request, res: Response) => {
@@ -179,10 +180,6 @@ app.post('/api/video', async (req, res) => {
       // send message when done
       res.json({message: 'done'});
     });
-
-  console.log('idk');
-
-  res.json({message: 'done'});
 });
 
 app.listen(port, () => {
