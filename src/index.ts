@@ -230,6 +230,27 @@ app.post('/api/asr', async (req, res) => {
 
   if (uploadError) throw uploadError;
 
+  // Associate the video with the user
+  const {data: existingVideo, error: videoError} = await supabase
+    .from('videos')
+    .select('videoId')
+    .eq('videoId', videoId);
+
+  if (videoError) throw videoError;
+
+  // If the video now has a transcription, delete the video's chunks
+  if (fullTranscription) {
+    for (const file of list) {
+      const {error: deleteError} = await supabase.storage
+        .from('chunks')
+        .remove([`chunks/${videoId}/${file.name}`]);
+
+      if (deleteError) {
+        console.error(`Failed to delete chunk ${file.name}:`, deleteError);
+      }
+    }
+  }
+
   // send message when done
   res.json({message: 'done'});
 });
