@@ -6,6 +6,10 @@ import cp from 'child_process';
 import {createClient} from '@supabase/supabase-js';
 import {HfInference} from '@huggingface/inference';
 import fetch from 'node-fetch';
+import {OpenAI} from 'langchain/llms/openai';
+import {PromptTemplate} from 'langchain/prompts';
+import {LLMChain} from 'langchain/chains';
+import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter';
 
 // @ts-ignore
 global.fetch = fetch;
@@ -265,6 +269,95 @@ app.post('/api/asr', async (req, res) => {
 
   // send message when done
   res.json({message: 'done'});
+});
+
+app.post('/api/summarize', async (req, res) => {
+  const {videoId, token} = req.body;
+
+  const supabase = await supabaseClient(token);
+
+  const openai = new OpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY,
+    modelName: 'gpt-3.5-turbo-16k-0613',
+    maxTokens: 500,
+  });
+
+  // try to download the summary file
+  const {data: summaryDownloadData, error: summaryDownloadError} =
+    await supabase.storage.from('summaries').download(`${videoId}/summary.txt`);
+
+  console.log('summaryDownloadError', summaryDownloadError);
+
+  if (summaryDownloadError) {
+    if (summaryDownloadError.message === 'Object not found') {
+      // if the summary file does not exist, generate a new summary
+
+      // download the transcription file
+      const {data: downloadData, error: downloadError} = await supabase.storage
+        .from('transcriptions')
+        .download(`${videoId}/transcription.txt`);
+
+      if (downloadError) throw downloadError;
+
+      // convert Blob to text
+      const fullTranscription = await downloadData.text();
+
+      // split the transcription into chunks of 10000 characters
+      const textSplitter = new RecursiveCharacterTextSplitter({
+        separators: ['\n\n', '\n'],
+        chunkSize: 10000,
+        chunkOverlap: 500,
+      });
+      const docs = await textSplitter.createDocuments([fullTranscription]);
+
+      // define the summarization prompt
+      const summarizationPromptTemplate = new PromptTemplate({
+        template:
+          'Read the following text and provide the key points to have a basic understanding as if I watched the video:\n"{content}"\nSUMMARY:',
+        inputVariables: ['content'],
+      });
+
+      // create the LLMChain for summarization
+      const summaryChain = new LLMChain({
+        llm: openai,
+        prompt: summarizationPromptTemplate,
+      });
+
+      console.log('Summarizing...');
+
+      // run the summarization chain for each chunk and combine the summaries
+      let combinedSummary = '';
+      for (const doc of docs) {
+        const summary = await summaryChain.run(doc.pageContent);
+        combinedSummary += summary + '\n';
+      }
+
+      console.log(combinedSummary);
+
+      // upload the combined summary to Supabase
+      const {error: uploadError} = await supabase.storage
+        .from('summaries')
+        .upload(`${videoId}/summary.txt`, new Blob([combinedSummary]));
+
+      if (uploadError) throw uploadError;
+      console.log('Summary uploaded to Supabase', combinedSummary);
+
+      // send message when done
+      res.json({message: 'done', summary: combinedSummary});
+    } else {
+      // if there is another error, throw it
+      throw summaryDownloadError;
+    }
+  } else {
+    // if the summary file exists, return the summary
+    try {
+      const summary = await summaryDownloadData.text();
+      console.log('Summary already exists', summary);
+      res.status(200).json({message: 'Summary already exists', summary});
+    } catch (error) {
+      console.log(error);
+    }
+  }
 });
 
 app.listen(port, () => {
