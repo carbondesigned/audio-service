@@ -346,7 +346,7 @@ app.post('/api/summarize', async (req, res) => {
       res.json({message: 'done', summary: combinedSummary});
     } else {
       // if there is another error, throw it
-      throw summaryDownloadError;
+      console.log(summaryDownloadError);
     }
   } else {
     // if the summary file exists, return the summary
