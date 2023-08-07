@@ -90,6 +90,7 @@ app.post('/api/video', async (req, res) => {
         console.log(`\ndone, thanks - ${(Date.now() - start) / 1000}s`);
 
         // Upload files to Supabase after ffmpeg process is done
+        const uploadPromises = [];
         for (let i = 0; i < 1000; i++) {
           // assuming a maximum of 1000 files
           const filePath = `${outputDir}/output${i
@@ -97,10 +98,21 @@ app.post('/api/video', async (req, res) => {
             .padStart(3, '0')}.mp3`;
           console.log(filePath);
           if (fs.existsSync(filePath)) {
-            await uploadFile(filePath);
-            fs.unlinkSync(filePath); // delete the local file after it's uploaded
+            uploadPromises.push(uploadFile(filePath));
           } else {
             break; // stop the loop if file doesn't exist
+          }
+        }
+
+        await Promise.all(uploadPromises);
+
+        // After all files are uploaded, delete them
+        for (let i = 0; i < uploadPromises.length; i++) {
+          const filePath = `${outputDir}/output${i
+            .toString()
+            .padStart(3, '0')}.mp3`;
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
           }
         }
 
