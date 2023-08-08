@@ -108,7 +108,11 @@ app.post('/api/video', async (req, res) => {
           }
         }
 
-        await Promise.all(uploadPromises);
+        try {
+          await Promise.all(uploadPromises);
+        } catch (error) {
+          console.log(error);
+        }
 
         // After all files are uploaded, delete them
         for (let i = 0; i < uploadPromises.length; i++) {
